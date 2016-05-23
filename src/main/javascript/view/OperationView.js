@@ -32,21 +32,21 @@ SwaggerUi.Views.OperationView = Backbone.View.extend({
   },
 
   selectText: function(event) {
-      var doc = document,
-          text = event.target.firstChild,
-          range,
-          selection;
-      if (doc.body.createTextRange) {
-          range = document.body.createTextRange();
-          range.moveToElementText(text);
-          range.select();
-      } else if (window.getSelection) {
-          selection = window.getSelection();
-          range = document.createRange();
-          range.selectNodeContents(text);
-          selection.removeAllRanges();
-          selection.addRange(range);
-      }
+    var doc = document,
+        text = event.target.firstChild,
+        range,
+        selection;
+    if (doc.body.createTextRange) {
+      range = document.body.createTextRange();
+      range.moveToElementText(text);
+      range.select();
+    } else if (window.getSelection) {
+      selection = window.getSelection();
+      range = document.createRange();
+      range.selectNodeContents(text);
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
   },
 
   mouseEnter: function(e) {
@@ -180,8 +180,12 @@ SwaggerUi.Views.OperationView = Backbone.View.extend({
           signatureModel = {
             sampleJSON: isJSON ? JSON.stringify(SwaggerUi.partials.signature.createJSONSample(value), void 0, 2) : false,
             isParam: false,
-            sampleXML: isXML ? SwaggerUi.partials.signature.createXMLSample(value.definition, value.models) : false,
+            sampleXML: isXML ? SwaggerUi.partials.signature.createXMLSample(value.name, value.definition, value.models) : false,
             signature: SwaggerUi.partials.signature.getModelSignature(value.name, value.definition, value.models, value.modelPropertyMacro)
+          };
+        } else {
+          signatureModel = {
+            signature: SwaggerUi.partials.signature.getPrimitiveSignature(value)
           };
         }
       }
@@ -251,6 +255,21 @@ SwaggerUi.Views.OperationView = Backbone.View.extend({
         statusCode.headers = this.parseHeadersType(statusCode.headers);
       }
       this.addStatusCode(statusCode);
+    }
+
+    if (Array.isArray(this.model.security)) {
+      var authsModel = SwaggerUi.utils.parseSecurityDefinitions(this.model.security);
+
+      authsModel.isLogout = !_.isEmpty(window.swaggerUi.api.clientAuthorizations.authz);
+      this.authView = new SwaggerUi.Views.AuthButtonView({
+        data: authsModel,
+        router: this.router,
+        isOperation: true,
+        model: {
+          scopes: authsModel.scopes
+        }
+      });
+      this.$('.authorize-wrapper').append(this.authView.render().el);
     }
 
     this.showSnippet();
@@ -488,7 +507,7 @@ SwaggerUi.Views.OperationView = Backbone.View.extend({
 
   // wraps a jquery response as a shred response
   wrap: function(data) {
-   var h, headerArray, headers, i, l, len, o;
+    var h, headerArray, headers, i, l, len, o;
     headers = {};
     headerArray = data.getAllResponseHeaders().split('\r');
     for (l = 0, len = headerArray.length; l < len; l++) {
@@ -665,7 +684,7 @@ SwaggerUi.Views.OperationView = Backbone.View.extend({
       code = $('<code />').text('no content');
       pre = $('<pre class="json" />').append(code);
 
-    // JSON
+      // JSON
     } else if (contentType === 'application/json' || /\+json$/.test(contentType)) {
       var json = null;
       try {
@@ -676,35 +695,35 @@ SwaggerUi.Views.OperationView = Backbone.View.extend({
       code = $('<code />').text(json);
       pre = $('<pre class="json" />').append(code);
 
-    // XML
+      // XML
     } else if (contentType === 'application/xml' || /\+xml$/.test(contentType)) {
       code = $('<code />').text(this.formatXml(content));
       pre = $('<pre class="xml" />').append(code);
 
-    // HTML
+      // HTML
     } else if (contentType === 'text/html') {
       code = $('<code />').html(_.escape(content));
       pre = $('<pre class="xml" />').append(code);
 
-    // Plain Text
+      // Plain Text
     } else if (/text\/plain/.test(contentType)) {
       code = $('<code />').text(content);
       pre = $('<pre class="plain" />').append(code);
 
 
-    // Image
+      // Image
     } else if (/^image\//.test(contentType)) {
       pre = $('<img>').attr('src', url);
 
-    // Audio
+      // Audio
     } else if (/^audio\//.test(contentType) && supportsAudioPlayback(contentType)) {
       pre = $('<audio controls>').append($('<source>').attr('src', url).attr('type', contentType));
 
-    // Download
+      // Download
     } else if (headers['Content-Disposition'] && (/attachment/).test(headers['Content-Disposition']) ||
-               headers['content-disposition'] && (/attachment/).test(headers['content-disposition']) ||
-               headers['Content-Description'] && (/File Transfer/).test(headers['Content-Description']) ||
-               headers['content-description'] && (/File Transfer/).test(headers['content-description'])) {
+        headers['content-disposition'] && (/attachment/).test(headers['content-disposition']) ||
+        headers['Content-Description'] && (/File Transfer/).test(headers['Content-Description']) ||
+        headers['content-description'] && (/File Transfer/).test(headers['content-description'])) {
 
       if ('Blob' in window) {
         var type = contentType || 'text/html';
@@ -713,6 +732,15 @@ SwaggerUi.Views.OperationView = Backbone.View.extend({
         var href = window.URL.createObjectURL(blob);
         var fileName = response.url.substr(response.url.lastIndexOf('/') + 1);
         var download = [type, fileName, href].join(':');
+
+        // Use filename from response header
+        var disposition = headers['content-disposition'] || headers['Content-Disposition'];
+        if(typeof disposition !== 'undefined') {
+          var responseFilename = /filename=([^;]*);?/.exec(disposition);
+          if(responseFilename !== null && responseFilename.length > 1) {
+            download = responseFilename[1];
+          }
+        }
 
         a.setAttribute('href', href);
         a.setAttribute('download', download);
@@ -723,11 +751,11 @@ SwaggerUi.Views.OperationView = Backbone.View.extend({
         pre = $('<pre class="json" />').append('Download headers detected but your browser does not support downloading binary via XHR (Blob).');
       }
 
-    // Location header based redirect download
+      // Location header based redirect download
     } else if(headers.location || headers.Location) {
       window.location = response.url;
 
-    // Anything else (CORS)
+      // Anything else (CORS)
     } else {
       code = $('<code />').text(content);
       pre = $('<pre class="json" />').append(code);
@@ -753,8 +781,8 @@ SwaggerUi.Views.OperationView = Backbone.View.extend({
 
     if (opts.showRequestHeaders) {
       var form = $('.sandbox', $(this.el)),
-        map = this.getInputMap(form),
-        requestHeaders = this.model.getHeaderParams(map);
+          map = this.getInputMap(form),
+          requestHeaders = this.model.getHeaderParams(map);
       delete requestHeaders['Content-Type'];
       $('.request_headers', $(this.el)).html('<pre>' + _.escape(JSON.stringify(requestHeaders, null, '  ')).replace(/\n/g, '<br>') + '</pre>');
     }
