@@ -38,7 +38,7 @@
       if (url && url.length > 1) {
         url = decodeURIComponent(url[1]);
       } else {
-        url = "http://petstore.swagger.io/v2/swagger.json";
+        url = "https://api.swaggerhub.com/apis/smartbear/ready-api-testserver/1.1.0";
       }
 
       hljs.configure({
@@ -68,11 +68,16 @@
           if(window.SwaggerTranslator) {
             window.SwaggerTranslator.translate();
           }
+
+          var basicAuth = new SwaggerClient.PasswordAuthorization('demoUser', 'demoPassword');
+          window.swaggerUi.api.clientAuthorizations.add("basicAuth", basicAuth);
+
+          addApiKeyAuthorization();
         },
         onFailure: function(data) {
           log("Unable to Load SwaggerUI");
         },
-        docExpansion: "none",
+        docExpansion: "list",
         jsonEditor: false,
         defaultModelRendering: 'schema',
         showRequestHeaders: false

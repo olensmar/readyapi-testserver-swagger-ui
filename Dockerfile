@@ -1,11 +1,12 @@
-###
-# swagger-ui-builder - https://github.com/swagger-api/swagger-ui/
-# Container for building the swagger-ui static site
-#
-# Build: docker build -t swagger-ui-builder .
-# Run:   docker run -v $PWD/dist:/build/dist swagger-ui-builder
-#
-###
+FROM alpine:3.3
 
-FROM nginx
-COPY dist /usr/share/nginx/html
+MAINTAINER Roman Tarnavski
+
+RUN apk add --update nginx
+
+COPY nginx.conf /etc/nginx/
+ADD dist /usr/share/nginx/html
+
+EXPOSE 8080
+
+CMD nginx -g 'daemon off;'
